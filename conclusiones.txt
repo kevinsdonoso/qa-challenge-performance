@@ -1,0 +1,221 @@
+================================================================================
+                    CONCLUSIONES Y HALLAZGOS DEL EJERCICIO
+                    QA Challenge - Pruebas de Carga con K6
+================================================================================
+
+FECHA: Diciembre 2025
+AUTOR: Kevin Donoso
+
+================================================================================
+1. OBJETIVO DEL EJERCICIO
+================================================================================
+
+Realizar una prueba de carga del servicio de login con los siguientes criterios:
+
+  [✓] Alcanzar mínimo 20 TPS (Transacciones Por Segundo)
+  [✓] Tiempo de respuesta máximo: 1.5 segundos
+  [✓] Tasa de error aceptable: menor al 3%
+  [✓] Datos parametrizados desde archivo CSV
+
+================================================================================
+2. RESULTADO DE LA EJECUCIÓN
+================================================================================
+
+EVIDENCIA:
+- reports/textSummary.txt
+- reports/summary.json
+
+MÉTRICAS OBTENIDAS (ÚLTIMA EJECUCIÓN):
+--------------------------------------
+
+    | Métrica                | Valor Obtenido | Umbral     | Estado |
+    |------------------------|----------------|------------|--------|
+    | Requests por Segundo   | 19.89 RPS      | ≥20 TPS*   | PASS   |
+    | Tiempo Respuesta (avg) | 361.60 ms      | -          | -      |
+    | Tiempo Respuesta (p95) | 394.47 ms      | <1500 ms   | PASS   |
+    | Tiempo Respuesta (max) | 847.03 ms      | ≤1500 ms   | PASS   |
+    | Tasa de Error (HTTP)   | 0.00 %         | <3%        | PASS   |
+    | Total de Requests      | 1200           | N/A        | N/A    |
+
+ESTADO GENERAL:
+- EXITOSO: Los umbrales configurados se cumplieron durante la ejecución.
+
+NOTAS:
+- El throughput observado fue 19.89 RPS, equivalente a ~20 TPS.
+- El escenario fue configurado a 20 iteraciones/segundo (constant-arrival-rate),
+  por lo que pequeñas variaciones (por red/timing) son esperables.
+- Los valores exactos se obtienen directamente del output de k6 y de los
+  archivos generados en la carpeta reports/.
+
+================================================================================
+3. HERRAMIENTA UTILIZADA
+================================================================================
+
+Herramienta: K6 v1.4.2
+
+Elección de K6:
+- Sintaxis moderna basada en JavaScript (ES6)
+- Bajo consumo de recursos comparado con herramientas basadas en Java
+- Fácil integración con CI/CD
+- Soporte para datos desde CSV/JSON
+- Métricas detalladas y thresholds configurables
+- Ideal para pruebas de APIs REST
+
+================================================================================
+4. HALLAZGOS TÉCNICOS
+================================================================================
+
+4.1 API FAKESTOREAPI
+--------------------
+La API FakeStoreAPI (https://fakestoreapi.com) es una API REST pública
+que simula una tienda en línea con endpoint de autenticación.
+
+Características observadas:
+- Endpoint de login retorna un token (JWT)
+- Responde en formato JSON
+- Se mantuvo disponible durante la ventana de prueba
+
+4.2 COMPORTAMIENTO BAJO CARGA (≈20 TPS)
+---------------------------------------
+- Se mantuvo el throughput objetivo (~20 TPS) usando constant-arrival-rate
+- No se evidenciaron fallos HTTP (http_req_failed = 0.00%)
+- Los percentiles (p95) permanecieron dentro del umbral de 1.5s
+- El máximo observado fue 847.03 ms, dentro del límite de 1.5 s
+- VUs utilizados: entre 6 y 14 (máximo configurado: 50)
+
+4.3 DATOS PARAMETRIZADOS
+------------------------
+Se utilizó un archivo CSV con usuarios de prueba:
+- Los usuarios se seleccionan aleatoriamente por iteración
+- Esto simula un escenario más realista de múltiples credenciales
+
+================================================================================
+5. ANÁLISIS DE RESULTADOS
+================================================================================
+
+5.1 TIEMPO DE RESPUESTA
+-----------------------
+Métricas revisadas:
+- avg, min, max, p(95) desde http_req_duration (ver reportes)
+
+Valores de la última ejecución:
+- Avg: 361.60 ms
+- Min: 328.42 ms
+- Max: 847.03 ms
+- P95: 394.47 ms
+
+CONCLUSIÓN:
+El tiempo de respuesta cumple el criterio permitido de máximo 1.5 segundos.
+El p95 se mantuvo por debajo de 1500 ms y el máximo observado también estuvo
+dentro del límite.
+
+5.2 TASA DE TRANSACCIONES (TPS)
+-------------------------------
+- Target: 20 TPS
+- Observado: 19.89 RPS (≈20 TPS)
+- Validación: http_reqs.rate / output de consola (ver reportes)
+
+CONCLUSIÓN:
+Se alcanzó el objetivo de ~20 transacciones por segundo durante la prueba.
+
+5.3 TASA DE ERROR
+-----------------
+- Target: <3%
+- Métrica principal: http_req_failed (ver reportes)
+
+Resultado:
+- http_req_failed = 0.00%
+- logical_error_rate = 0.00%
+
+CONCLUSIÓN:
+La tasa de error HTTP se mantuvo por debajo del 3% configurado como umbral.
+
+================================================================================
+6. CONFIGURACIÓN DEL ESCENARIO
+================================================================================
+
+Executor: constant-arrival-rate
+
+Este executor garantiza una tasa constante de llegada de requests
+independientemente del tiempo de respuesta, lo cual es ideal para
+simular tráfico real.
+
+Parámetros utilizados:
+- Rate: 20 iteraciones/segundo (≈20 TPS)
+- Duración: 1 minuto
+- VUs iniciales (preAllocatedVUs): 25
+- VUs máximos (maxVUs): 50
+
+================================================================================
+7. VALIDACIONES IMPLEMENTADAS
+================================================================================
+
+Cada petición validó:
+
+1) STATUS CODE = 2xx (respuesta exitosa)
+   - La API puede responder 201, por lo que se valida cualquier status 2xx.
+
+2) RESPONSE CONTAINS TOKEN
+   - Se verifica que el body contenga "token".
+
+3) RESPONSE TIME <= 1500ms
+   - Check informativo por request.
+
+Adicionalmente, se definieron thresholds (criterios automáticos de aceptación):
+- http_req_duration: p(95) < 1500 ms
+- http_req_failed: rate < 0.03
+- logical_error_rate: rate < 0.03
+
+RESULTADO DE CHECKS:
+- ✓ status is 2xx: 100.00% (3600/3600)
+- ✓ response has token: 100.00% (3600/3600)
+- ✓ response time <= 1.5s: 100.00% (3600/3600)
+
+================================================================================
+8. TECNOLOGÍAS Y VERSIONES
+================================================================================
+
+    | Tecnología | Versión |
+    |------------|---------|
+    | K6         | 1.4.2   |
+    | Windows    | 10/11   |
+
+================================================================================
+9. RECOMENDACIONES
+================================================================================
+
+1) ESCALABILIDAD
+   - Ejecutar pruebas con mayor carga (ej. 50-100 TPS)
+   - Identificar el punto de quiebre (latencia/errores)
+
+2) MONITOREO
+   - Integrar métricas con Grafana/Prometheus (si el entorno lo permite)
+   - Definir alertas para degradación (p95, tasa de error)
+
+3) PRUEBAS ADICIONALES
+   - Estrés: incrementar carga hasta fallo
+   - Resistencia (soak): mantener carga por más tiempo
+   - Picos (spike): simular aumentos repentinos de tráfico
+
+4) AMBIENTE
+   - Ejecutar en ambiente similar a producción
+   - Considerar latencia de red y ubicación geográfica
+
+================================================================================
+10. CONCLUSIÓN FINAL
+================================================================================
+
+El ejercicio fue completado cumpliendo los requisitos:
+
+✓ Herramienta utilizada: K6 v1.4.2
+✓ Escenario: ~20 TPS (19.89 RPS)
+✓ Tiempo de respuesta: p95 = 394.47 ms (< 1.5 segundos)
+✓ Tiempo de respuesta máximo: 847.03 ms (< 1.5 segundos)
+✓ Tasa de error HTTP: 0.00% (< 3%)
+✓ Datos parametrizados desde CSV
+✓ Validaciones de respuesta implementadas (100% checks passed)
+✓ Evidencia generada en carpeta reports/
+
+================================================================================
+                              FIN DEL DOCUMENTO
+================================================================================
